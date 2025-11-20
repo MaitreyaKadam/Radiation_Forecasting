@@ -1,0 +1,515 @@
+---
+title: "Forecasting Assignment 2"
+author: Maitreya Milind Kadam (s4087536)
+output: html_document
+date: "2025-09-26"
+---
+
+```{r,message=FALSE,warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(TSA)
+library(forecast)
+library(x12)
+library(tseries)
+library(dLagM)
+library(readr)
+library(stats)
+library(car)
+library(dynlm)
+library(lmtest)
+library(tidyr)
+library(dplyr)
+library(knitr)
+```
+
+```{r}
+#UDF Function for acf,pacf
+acf_pacf=function(x){
+  var=deparse(substitute(x))
+  par(mfrow=c(1,2))
+  acf(x,main=paste('ACF plot for',var),lag.max=70)
+  pacf(x,main=paste('PACF plot for',var),lag.max=70)
+}
+```
+
+## Introduction
+
+This assignment consists of two time series analysis tasks. The 1st task focuses on analyzing and forecasting the monthly average horizontal solar radiation using appropriate time series techniques. The main task is to give the best 2 years forecasts using appropriate time series regression methods in terms of MASE. The 2nd task focuses on the relationship between the quaterly Residential Property Price Index (PPI) in Melbourne and the quaterly population change in Victoria over the period. The analysis focuses on determining whether the correlation between these two factors reflects a genuine association or is spurious. This analysis involves applying correlation analysis and stationarity tests to check the validity of the relation.
+
+# Task 1
+
+## Data Description
+
+I have loaded the data1.csv which contains data about monthly average horizontal solar radiation and monthly precipitation. After that, I have converted the dataframe into time series object for visualisation and further analysis.
+
+```{r}
+solar_ppt=read.csv('data1.csv')
+solar=ts(solar_ppt$solar,start=c(1960,1),frequency = 12)
+head(solar)
+```
+
+```{r}
+ppt=ts(solar_ppt$ppt,start=c(1960,1),frequency = 12)
+head(ppt)
+```
+
+```{r}
+#loading the dataset that are to be used for solar radiation forecasts
+solar_fore=read.csv('data.x.csv')
+```
+
+## Data Visualization
+
+```{r}
+plot(solar, main = "Monthly Time series plot of solar radiation", ylab = "Solar radiation", xlab = "Year")
+points(y=solar,x=time(solar),pch=as.vector(season(solar)))
+```
+
+Based on the above figure, the following points can be inferred:
+
+1.  Trend: There appears to be no clear long-term upward or downward trend. The time series for the solar radiation appears to fluctuate around a stable mean.
+
+2.  Seasonality: The time series displays a strong seasonal pattern which includes peaks which are likely annual.
+
+3.  Variance: Due to the presence of seasonality changing variance is not easy to be noticed.
+
+4.  Change Points: The first change point appears to be around 1965 and the second change point appears to be around 1987.
+
+```{r}
+#calls the udf function which is defined at the start.
+acf_pacf(solar)
+```
+
+The ACF and PACF plot in the above figure clearly illustrates strong seasonal pattern which is indicated by a repeating annual pattern. However, the plots don't suggest any trend.
+
+```{r}
+adf.test(solar)
+```
+
+Based on the ADF test, the p-value of 0.01 is less than the threshold of 0.05 which rejects the null hypothesis of non-stationarity and therefore we can conclude that the solar radiation series is stationary.
+
+```{r}
+plot(ppt, main = "Time series plot of precipitation", ylab = "Precipitation", xlab = "Year",type='o')
+```
+
+```{r}
+plot(ppt, main = "Monthly Time series plot of solar precipitation", ylab = "Precipitation", xlab = "Year")
+points(y=ppt,x=time(ppt),pch=as.vector(season(ppt)))
+```
+
+Based on the above figure, the following points can be inferred:
+
+1.  Trend: The time series plot of precipitation indicates a gradual downward trend which is visible in the start of the series.
+
+2.  Seasonality: Lower precipitation values are observed in July, August while higher precipitation values are observed during December-January. This indicates that there is a clear seasonality as the pattern changes overtime.
+
+3.  Variance: Due to the presence of seasonality changing variance is not easy to be noticed.
+
+4.  Change Point: There are no change points in the above plot.
+
+```{r}
+acf_pacf(ppt)
+```
+
+From the above ACF plot it can be observed that there is a presence of seasonal pattern which is indicated by the repetitive nature of the lags. In addition to that, there is also a possible existence of trend which is illustrated by the decaying pattern of seasonal lags.
+
+```{r}
+adf.test(ppt)
+```
+
+The above results from the ADF tests helps in concluding that the precipitation series is stationary. The p-value of 0.01 which is less than the 0.05 threshold rejects the null hypothesis of non-stationarity.
+
+## Components of a Time Series Data
+
+## STL Decomposition for Solar radiation
+
+```{r}
+stl_solar=stl(solar,t.window=15,s.window='periodic',robust=TRUE)
+plot(stl_solar)
+```
+
+From the above plot, it can be inferrred that:
+
+-   The trend component for the solar radiation remains relatively stable over the time period with no presence of upward or downward movement.
+
+-   In terms of the change points, there are 2 change points that appear around the year 1965 and 1987.
+
+## STL Decomposition for Precipitation
+
+```{r}
+stl_ppt=stl(ppt,t.window=15,s.window='periodic',robust=TRUE)
+plot(stl_ppt)
+```
+
+From the above plot, it can be inferrred that:
+
+-   In terms of trend, the precipitation time series shows a gradual decline during the early part of the observed period.
+
+-   In terms of change points, there don't seem to be any significant change points over the observed period for the time series.
+
+## Modelling with Time Series Regression Methods
+
+```{r}
+cor(solar_ppt)
+```
+
+The negative correlation i.e. -0.45 between solar radiation and precipitation indicates that higher rainfall relates with lower solar radiation levels.
+
+## Finite Distributed Lag Model
+
+```{r}
+for (j in 1:10){
+  mod_1=dlm(x=solar_ppt$ppt,y=solar_ppt$solar,q=j)
+  cat('q=',j,'AIC=',AIC(mod_1$model),'BIC=',BIC(mod_1$model),'MASE=',MASE(mod_1)$MASE,'\n')
+}
+
+```
+
+We will proceed with the q value of 10 as it exhibits the smallest MASE value.
+
+```{r}
+f_dlm=dlm(x=solar_ppt$ppt,y=solar_ppt$solar,q=10)
+summary(f_dlm)
+```
+
+The Finite DLM model is statistically significant as the p-value is less than 0.05. The adjusted R-square value is 0.2962 which means that the model explains only 29.6% of the variation in the level of solar radiation. The model is not strong due to low explanatory power.
+
+```{r}
+vif(f_dlm$model)
+```
+
+The Finite DLM model does not exhibit multicollinearity as all the VIF values are less than 10
+
+```{r}
+checkresiduals(f_dlm$model)
+```
+
+The residual plot clearly shows that the residuals are not randomly distributed. The ACF plot along with the Breusch-Godfrey test has p-value less than 0.05 which confirms serial correlation and seasonality. Therefore, the finite DLM model with q=10 fails to capture the autocorrelation and seasonal patterns which are present in the data.
+
+## Polynomial Distributed Lag Model
+
+```{r}
+q_val=1:5
+k_val=1:3
+for (i in q_val){
+  for (j in k_val){
+    if (j<=i){
+      mod_2=polyDlm(x=solar_ppt$ppt,y=solar_ppt$solar,q=i,k=j,show.beta=TRUE)
+      cat('q=',i,'k=',j,'AIC=',AIC(mod_2$model),'BIC=',BIC(mod_2$model),'MASE=',MASE(mod_2)$MASE,'\n')
+    }
+  }
+}
+```
+
+The lowest MASE value is observed at q=5 and k=3, therefore I will proceed with those two values for Polynomial DLM modelling.
+
+```{r}
+p_dlm=polyDlm(x=solar_ppt$ppt,y=solar_ppt$solar,q=5,k=3,show.beta=TRUE)
+summary(p_dlm)
+```
+
+```{r}
+checkresiduals(p_dlm$model)
+```
+
+## Koyck Distributed Lag Model
+
+```{r}
+koy_dlm=koyckDlm(x=solar_ppt$ppt,y=solar_ppt$solar)
+summary(koy_dlm$model,diagnostics=TRUE)
+```
+
+```{r}
+checkresiduals(koy_dlm$model)
+```
+
+Based on the above residual analysis for the Koyck DLM model:
+
+-   The lags displayed in the ACF plot have a wave-like structure which is an indicator of serial correlation and seasonality.
+
+-   The p-value which is less than 0.05 suggests that the residuals are not normal.Therefore the Koyck DLM model is also not able to capture the autocorrelation and seasonality.
+
+## AutoRegressive Distributed Lag Model
+
+```{r}
+for(i in 1:5){
+  for(j in 1:5){
+    mod3 = ardlDlm(x=solar_ppt$ppt,y=solar_ppt$solar, p = i, q = j)
+    cat("p = ", i, "q = ", j, "AIC = ", AIC(mod3$model), "BIC = ", BIC(mod3$model),'MASE=',MASE(mod3)$MASE, "\n")
+  }
+}
+```
+
+The lowest MASE value is observed at p=5 and q=5, therefore I will proceed with those two values for Autoregressive DLM modelling.
+
+```{r}
+autoreg_dlm = ardlDlm(x=solar_ppt$ppt,y=solar_ppt$solar,p=5,q=5)
+summary(autoreg_dlm)
+```
+
+```{r}
+checkresiduals(autoreg_dlm$model)
+```
+
+Based on the above residual analysis for AutoRegressive DLM model:
+
+-   There is a presence of changing variance in the residuals and they show signs of non-randomness.
+
+-   There are some high spikes in the ACF plot which indicate autocorrelation and seasonality.
+
+-   The histogram plot also contains long tails which suggests that the normality of the residuals is violated.
+
+Upon fitting the Finite, Polynomial, Koyck, and AutoRegressive DLM model it turns out that these models were not able to capture the autocorrelation and seasonality present in the solar radiation series. I have created a dataframe named 'accurate' to store and compare the AIC, BIC, and MASE values for all the models fitted and which are going to be fitted further.
+
+```{r}
+attr(koy_dlm$model,'class')='lm'
+mods=c('Finite DLM','Poly DLM','Koyck', 'AutoReg DLM')
+mase=MASE(f_dlm$model,p_dlm$model,koy_dlm$model,autoreg_dlm)$MASE
+accurate=data.frame(mods,mase)
+colnames(accurate)=c('Models','MASE')
+head(accurate)
+
+
+```
+
+## Exponential Smoothing Methods
+
+As there is a presence of seasonality in the given time series we can try another method which is the exponential smoothing but for that we will focus on the models that include additive or multiplicative seasonality.
+
+```{r}
+expo=c(T,F)
+season=c('additive',"multiplicative")
+damp=c(T,F)
+exp=expand.grid(expo,season,damp)
+exp=exp[-c(1,5),]
+expo_smth_aic=array(NA,6)
+expo_smth_bic=array(NA,6)
+expo_smth_mase=array(NA,6)
+lvl=array(NA,dim=c(6,3))
+for (i in 1:6){
+  hw=hw(solar,expo = exp[i,1],seasonal=toString(exp[i,2],damp=exp[i,3]))
+  expo_smth_aic[i]=hw$model$aic
+  expo_smth_bic[i]=hw$model$bic
+  expo_smth_mase[i]=accuracy(hw)[6]
+  lvl[i,1]=exp[i,1]
+  lvl[i,2]=toString(exp[i,2])
+  lvl[i,3]=exp[i,3]
+  checkresiduals(hw)
+}
+```
+
+Based on the above results, there is a slight improvement in the residuals as compared to the DLM models in capturing the correlation and seasonality present in the series. Therefore, the results from the exponential smoothing methods are added to the earlier created dataframe so as to compare based on the MASE values.
+
+```{r}
+vals=data.frame(lvl,expo_smth_mase)
+colnames(vals)=c('Trend','Seasonality','Damped','MASE')
+vals$Trend=factor(vals$Trend,levels=c(T,F),labels=c('multiplicative','additive'))
+vals$Damped=factor(vals$Damped,levels=c(T,F),labels=c('damped','N'))
+vals=unite(vals,col='Models',c('Trend','Seasonality','Damped'))
+accurate=rbind(accurate,vals)
+accurate
+```
+
+## State-Space Model Variations
+
+```{r}
+var=c('AAA','MAA','MAM','MMM')
+damps=c(T,F)
+statespace_models=expand.grid(var,damps)
+statespace_aic=array(NA,8)
+statespace_bic=array(NA,8)
+statespace_mase=array(NA,8)
+mod=array(NA,dim=c(8,2))
+for (i in 1:8){
+  s_space=ets(solar,model=toString(statespace_models[i,1]),damped=statespace_models[i,2])
+  statespace_aic[i]=s_space$aic
+  statespace_bic[i]=s_space$bic
+  statespace_mase[i]=accuracy(s_space)[6]
+  mod[i,1]=toString(statespace_models[i,1])
+  mod[i,2]=statespace_models[i,2]
+}
+
+```
+
+```{r}
+statespace <- ets(solar)
+summary(statespace)
+```
+
+Based on the above results, the model suggested by the software is ETS(A,Ad,A) which includes additive errors, additive damped trend and additive seasonality in it.
+
+```{r}
+checkresiduals(statespace)
+```
+
+Based on the above results, the measures for the state space models are also added to the dataframe created earlier.
+
+```{r}
+acc_measure=data.frame(mod,statespace_mase)
+acc_measure$X2=factor(acc_measure$X2,levels=c(T,F),labels=c('Damped','N'))
+acc_measure=unite(acc_measure,'Model',c('X1','X2'))
+colnames(acc_measure)=c('Models','MASE')
+accurate=rbind(accurate,acc_measure)
+accurate=arrange(accurate, MASE)
+kable(accurate, caption = "Models sorted by MASE")
+```
+
+Based on the above result, the model that gives the lowest MASE is the additive_multiplicative_damped model with a MASE value of 0.2233077.
+
+Now as we checked all the models based on their MASE values, to select the best model for forecasting I compared three options. The Holt-Winters multiplicative method gave the lowest MASE and best captured autocorrelation and seasonality. The version with a multiplicative trend had the 2nd best MASE. The ETS(A,Ad,A) model which was suggested by the software had the lowest MASE between the state space models but it was unable to capture autocorrelation which was present in the data.
+
+## Forecasting
+
+I have loaded the data.x which is to be used for forecasting the solar radiation for the next 2 years. However, the models which are selected based on the MASE values i.e. Holt-Winters(both standard and exponential) and ETS(A,Ad,A) are univariate in their approach. That means, these models rely only on the historical values of the target variable which is solar radiation in this case to capture the level, trend, and seasonality. As they do not include external predictors(data.x), adding data.x would not influence the forecast and it would be unnecessary.
+
+```{r}
+forecast1 = hw(solar, seasonal="multiplicative", h=2*frequency(solar))
+forecast2 =hw(solar, seasonal="multiplicative", exponential=T, h=2*frequency(solar))
+forecast3 = ets(solar, model="AAA", damped = T)
+fore_radiation=forecast::forecast(forecast3)
+```
+
+```{r}
+plot(fore_radiation,xlim=c(2015,2017), fcol = "white", main = "Radiation Series with 2 years ahead forecast", ylab = "Radiation", ylim = c(-10,55))
+lines(fitted(forecast1), col = "green")
+lines(forecast1$mean, col = "green", lwd = 1)
+lines(fitted(forecast2), col = "brown2")
+lines(forecast2$mean, col = "brown2", lwd = 1)
+lines(fitted(forecast3), col = "blue")
+lines(fore_radiation$mean, col = "blue", lwd = 1)
+legend("bottomleft", lty = 1,cex=0.6, col = c("black", "green", "brown2", "blue"), c("Data", "Holt-Winters' Multiplicative", "Holt-Winters","Multiplicative Exponential", "ETS(A,Ad,A)"))
+```
+
+Based on the above plot, we can see that all the 3 models produce fitted values that are generally close to the original data. However the state-space model showed the largest difference. The forecasts from the models vary noticeably. The state-space model predicts the highest peaks. The Holt-Winters multiplicative model suggests a decline in the solar radiation over the period of 2 years, it's version of a multiplicative trend showed stable levels for the 1st year which is followed by a slight drop in the 2nd year. All in all, based on residual plots and the comparison of the MASE values, I chose the Holt-Winters multiplicative model for forecasting the solar radiation 2 years ahead.
+
+```{r}
+plot(forecast1, fcol = "white", main = "Solar radiation series with two years ahead forecasts", ylab = "Radiation")
+lines(fitted(forecast1), col = "darkgreen")
+lines(forecast1$mean, col = "darkgreen", lwd = 1)
+legend("bottomleft", lty = 1, col = c("red", "darkgreen"), c("Data", "Forecasts"))
+```
+
+# Task 2
+
+## Data Description
+
+I have loaded the data2.csv which contains data about the quaterly Residential PPI in Melbourne and population change in Victoria over the previous quarter from September 2003 to December 2016. After that, I have converted the dataframe into time series object for visualisation and further analysis.
+
+```{r}
+ppi_population =read_csv('data2.csv')
+```
+
+```{r}
+cppi=ts(ppi_population[,2:3],start=c(2003,3),frequency=4)
+quaterly_ppi=ts(ppi_population$price,start=c(2003,3),frequency=4)
+pop_change=ts(ppi_population$change,start=c(2003,3),frequency=4)
+head(cppi)
+```
+
+## Data Visualisation
+
+```{r}
+plot(cppi,main='Time series plots for Melbourne PPI and Population Change',type='o')
+```
+
+Upon visualizing both the time series, it can be clearly seen that they have upward trends, and the population change appears to be seasonal. The plot also shows a possible correlation between the two and we will explore the correlation between them in the further steps.
+
+## Correlation
+
+```{r}
+cor(cppi)
+```
+
+Based on the above correlation matrix between the two variables, there is a strong correlation i.e. 0.697 between Melbourne PPI and Population Change which indicates that they tend to move together.
+
+```{r}
+cppi.scale = scale(cppi)
+plot(cppi.scale, plot.type="s", col=c("blue", "red"), main = "Melbourne PPI and Population Change")
+legend("topleft", 
+       legend=c("Residential PPI", "Population Change"),
+       col=c("blue", "red"),
+       lty=1,
+       cex=0.8)
+```
+
+Based on the above plot, it is clear that both the time series are correlated with each other. Both the time series plot shows upward trend. The strong correlation between the two suggests a linked relation.
+
+```{r}
+ccf(as.vector(quaterly_ppi),as.vector(pop_change),ylab='ccf',main='CCF for PPI and Population Change',lag.max = 70)
+```
+
+From the above CCF plot for PPI and Population Change, there are several lags in the CCF plot that are significantly different from zero. This indicates cross-correlation between Melbourne's PPI and Population Change. This might also be possible to to nonstationarity present in the dataset which could lead to misleading correlations.
+
+## Presence of Nonstationarity
+
+```{r}
+acf_pacf(quaterly_ppi)
+```
+
+Based on the above ACF and PACF plots for Melbourne PPI:
+
+-   The lags in the ACF plot for Melbourne PPI shows a decaying pattern which is an indicator that the series is nonstationary, and it is also evident that there is no seasonality present in the time series.
+
+-   The PACF plot for Melbourne PPI indicates partial autocorrelation at the initial lags which suggest that the past values have an impact on current values.
+
+```{r}
+acf_pacf(pop_change)
+```
+
+Based on the above ACF and PACF plots for Population Change:
+
+-   The lags in the ACF plot for Population Change also show a decaying pattern and they indicate that the series is non-stationary.
+
+-   The PACF plot for Population Change has multiple spikes across different lags which suggests that there is a complex autocorrelation present
+
+```{r}
+adf.test(quaterly_ppi)
+```
+
+```{r}
+adf.test(pop_change)
+```
+
+Based on the above ADF tests for both the time series, the p-value is 0.8458 and 0.7344 which are both greater than the significant threshold value i.e. \>0.05 and therefore we can conclude that both the series are non-stationary and hence we need to make them stationary before applying the prewhitening approach to them.
+
+```{r}
+difference <- ts.intersect(diff(diff(quaterly_ppi,4)), diff(diff(pop_change,4)))
+```
+
+```{r}
+par(mfrow=c(1,2))
+acf(difference[,1],lag.max=70,main='ACF for Melbourne PPI')
+acf(difference[,2],lag.max=70,main='ACF for Population Change')
+```
+
+```{r}
+par(mfrow=c(1,2))
+pacf(difference[,1],lag.max=70,main='PACF for Melbourne PPI')
+pacf(difference[,2],lag.max=70,main='PACF for Population Change')
+```
+
+```{r}
+adf.test(difference[,1])
+```
+
+```{r}
+adf.test(difference[,2])
+```
+
+In order to remove the non-stationarity presence in both the time series, I applied the seasonal differencing for both to ensure that there is consistency among both of them. Therefore, based on the above ADF results it can be concluded that both the series are stationary as the p-values are 0.01 and 0.02136 which is less than the significant threshold i.e. \<0.05.
+
+Now, as both the time series are stationary we can move ahead with the prewhitening process to differentiate the relationship between the series from their autocorrelation.
+
+## Prewhitening
+
+```{r}
+prewhiten(as.vector(difference[,1]), as.vector(difference[,2]), ylab='CCF', main = "CCF Prewhitened between Melbourne PPI and Population Change")
+```
+
+After performing prewhitening, the above CCF plot indicates that there is no significant correlation between the Melbourne PPI and Population change. This suggests that the link in the data was probably misleading due to nonstationarity present.
+
+## Conclusion
+
+By performing Task 1, most of the models that were used to forecast the solar radiation for the next 2 years were unable to capture seasonality and autocorrelation which was present in the data. However 3 models performed well out of which the Holt-Winters multiplicative method worked best as it gave the lowest MASE. This suggests that the solar radiation will decrease but the confidence interval suggests that the forecast are not that much reliable.
+
+For Task 2, upon visualizing the initial plots, both the Melbourne PPI and Population Change indicated upward trends and their correlation indicated that both of them were related to each other. However, upon making the time series stationary and then using prewhitening, that correlation turned out to be spurious.
