@@ -1,6 +1,6 @@
 ---
-title: "Forecasting Assignment 2"
-author: Maitreya Milind Kadam (s4087536)
+title: "Forecasting Project"
+author: Maitreya Milind Kadam
 output: html_document
 date: "2025-09-26"
 ---
@@ -34,7 +34,7 @@ acf_pacf=function(x){
 
 ## Introduction
 
-This assignment consists of two time series analysis tasks. The 1st task focuses on analyzing and forecasting the monthly average horizontal solar radiation using appropriate time series techniques. The main task is to give the best 2 years forecasts using appropriate time series regression methods in terms of MASE. The 2nd task focuses on the relationship between the quaterly Residential Property Price Index (PPI) in Melbourne and the quaterly population change in Victoria over the period. The analysis focuses on determining whether the correlation between these two factors reflects a genuine association or is spurious. This analysis involves applying correlation analysis and stationarity tests to check the validity of the relation.
+This project consists of two time series analysis tasks. The 1st task focuses on analyzing and forecasting the monthly average horizontal solar radiation using appropriate time series techniques. The main task is to give the best 2 years forecasts using appropriate time series regression methods in terms of MASE. The 2nd task focuses on the relationship between the quaterly Residential Property Price Index (PPI) in Melbourne and the quaterly population change in Victoria over the period. The analysis focuses on determining whether the correlation between these two factors reflects a genuine association or is spurious. This analysis involves applying correlation analysis and stationarity tests to check the validity of the relation.
 
 # Task 1
 
